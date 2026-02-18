@@ -1,0 +1,19 @@
+[project]
+name = "temporal-security-scanner"
+version = "1.0.0"
+description = "GitHub organization security scanner — before and after Temporal"
+requires-python = ">=3.11"
+dependencies = [
+    "temporalio>=1.7.0",
+    "requests>=2.31.0",
+    "cryptography>=41.0.0",  # For end-to-end payload encryption (Fernet/AES)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
