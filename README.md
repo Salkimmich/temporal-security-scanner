@@ -99,7 +99,6 @@ This project demonstrates three layers of security hardening:
 ├── tests/
 │   └── test_workflow.py        # Tests using Temporal's in-memory test server
 ├── pyproject.toml
-├── PRESENTATION.md             # 10-15 minute talk outline with timing
 └── README.md
 ```
 
