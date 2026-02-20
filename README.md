@@ -1,6 +1,9 @@
 # Temporalizing a GitHub Security Scanner
 
-A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application.
+A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application. Click on the image below to watch the demo! Read below for more insights on how to get started.
+
+[<img src="Screenshot 2026-02-20 at 09.43.19.png">](https://drive.google.com/file/d/1dgRSQyodot7vif9Y_COP-WTf4_wOIndf/view?usp=sharing)
+
 
 ## The Problem
 
