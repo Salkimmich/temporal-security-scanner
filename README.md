@@ -1,6 +1,8 @@
 # Temporalizing a GitHub Security Scanner
 
-A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application, prepared for presentation to Temporal engineers as if explaining to a developer audience at a meetup or conference.
+A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application, prepared for presentation to Temporal engineers as if explaining to a developer audience at a meetup or conference. Click on the image below to watch the demo; read on for how to get started and how each presentation objective is covered.
+
+[<img src="Screenshot 2026-02-20 at 09.43.19.png" alt="Demo screenshot">](https://drive.google.com/file/d/1dgRSQyodot7vif9Y_COP-WTf4_wOIndf/view?usp=sharing)
 
 **How this demo maps to the presentation objectives**
 
@@ -154,7 +156,6 @@ More detail: **[DEMO.md](DEMO.md)** (what we’re demonstrating and why), **[PLA
 | **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** | Windows install, venv, and proven PowerShell sequence |
 
 ---
-
 ## The Problem
 
 I maintain a security scanner that audits GitHub organizations for proper security configuration — checking whether repositories have secret scanning, Dependabot alerts, and code scanning (GHAS) enabled. The [original script](before/scanner.py) works. Until it doesn't.
