@@ -1,6 +1,159 @@
 # Temporalizing a GitHub Security Scanner
 
-A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application.
+A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application, prepared for presentation to Temporal engineers as if explaining to a developer audience at a meetup or conference.
+
+**How this demo maps to the presentation objectives**
+
+- **Original problem and how the code worked before** — The [The Problem](#the-problem) section describes what the scanner does and the five ways it breaks at scale (rate limits, partial failures, no visibility, fragile error handling, no resilience). The **before** version lives in [`before/scanner.py`](before/scanner.py): a single script that fetches repos and checks security settings sequentially, with `sys.exit(1)` on errors and `time.sleep(60)` on rate limits. You can run it yourself under [Running the "Before" Version](#running-the-before-version).
+- **How it was broken apart and Temporalized (rationale)** — [The Solution](#the-solution) and the [Architecture](#architecture) diagram show the split: side effects (GitHub API calls) become **Activities**; orchestration (batching, progress, reporting) becomes the **Workflow**. [The Transformation: Step by Step](#the-transformation-step-by-step) explains how we identified activities vs workflow logic and the design choices (retry policy, batch size, heartbeating, non-retryable error types). The **after** implementation is in `temporal/`: workflows, activities, worker, encryption, and a starter CLI.
+- **Challenges (failure handling, state management, scaling)** — [What Breaks in Production](#what-breaks-in-production) spells out the challenges. The [What Temporal Gives Us](#what-temporal-gives-us) table shows how each challenge is addressed (retries, replay, queries, signals, encryption). [The Kill Test](#the-kill-test) and the live demo prove durability: kill the worker mid-scan and the workflow resumes from the next repo.
+- **Why the Temporalized version improves** — Summarized in the same table and in [Security Architecture](#security-architecture) (payload encryption, safe signal handling, defense in depth). The demo itself—running a scan, querying progress, killing the worker, and watching recovery—is the evidence.
+- **Trade-offs and considerations** — [Trade-offs and Considerations](#trade-offs-and-considerations) covers added complexity, infrastructure dependency, determinism constraints, and serialization. [Key Design Decisions](#key-design-decisions) documents why we chose synchronous activities, batches of 10, `ValueError` as non-retryable, and so on.
+- **Documenting and teaching for a developer audience** — This README explains how to get the demo up and running ([Run the demo](#run-the-demo-quick-start) and [Project Structure](#project-structure)). [DEMO.md](DEMO.md) ties the demo flow to the thinking behind it; [PLAYBOOK.md](PLAYBOOK.md) is the step-by-step runbook and troubleshooting; [PRESENTATION.md](PRESENTATION.md) is the talking points and Q&A prep for the live walkthrough. The interactive [`demo_runner.py`](demo_runner.py) (“The 2am Incident”) walks through concepts, encryption, the kill test, and graceful cancel with on-screen narrative.
+- **Deliverables** — **Before/after code:** `before/scanner.py` (original) and `temporal/` (Worker, Workflow, Activities, plus encryption, starter, and tests). **README:** the section below gets you from clone to a running scan in three terminals. The app is **testable** (`pytest tests/ -v` uses Temporal’s test server; no external server needed) and **resilient** (retries, timeouts, replay, and the kill test).
+
+---
+
+## Run the demo (quick start)
+
+You need **three terminals**. All commands assume you're in the project root (e.g. `C:\dev\temporal-security-scanner` or `~/temporal-security-scanner`).
+
+### Prerequisites
+
+- **Python 3.11+**
+- **Temporal CLI** (provides the local dev server) — [install](https://docs.temporal.io/cli)
+- **GitHub Personal Access Token (recommended)** — Without a token, GitHub allows only **60 API requests/hour** (~20 repos before rate limit). With a token you get **5,000 requests/hour**, so the demo can scan a larger org (e.g. `temporalio`) without hitting limits. Create one at [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) with `repo` and `read:org` scopes, then set `GITHUB_TOKEN` in your environment before running the demo.
+
+### One-time setup
+
+**Linux / macOS:**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+**Windows (PowerShell):** You can either create a venv and install deps the same way as Linux (`.\.venv\Scripts\Activate.ps1` then `pip install -e ".[dev]"`), or use the project’s **setup script** for a one-time install:
+
+- **What `setup.ps1` does:** Checks Python 3.11+, installs the Temporal CLI if missing (and adds it to your user PATH), installs the project’s Python dependencies with pip, and sets `PYTHONPATH` for that session. It does not create a venv.
+- **When to use it:** Handy on a fresh Windows machine when you want one script to get Temporal CLI + deps without following the Linux-style venv steps.
+- **How to run it:** From the project root in PowerShell. If the script needs to install Temporal CLI and update PATH, you may need to run PowerShell as Administrator first:
+
+```powershell
+# If you need admin rights (e.g. for PATH when installing Temporal CLI):
+powershell -Command "Start-Process powershell -Verb RunAs"
+# In the new (elevated) window that opens:
+cd C:\dev\temporal-security-scanner
+.\setup.ps1
+```
+
+Otherwise, in a normal PowerShell window:
+
+```powershell
+cd C:\dev\temporal-security-scanner
+.\setup.ps1
+```
+
+After setup, you still need to set `$env:PYTHONPATH = "C:\dev\temporal-security-scanner"` in any terminal where you run the worker or demo (see Terminal 2 and 3 below).
+
+### Terminal 1 — Temporal server
+
+```bash
+temporal server start-dev
+```
+
+Leave this running. Web UI: **http://localhost:8233**
+
+### Terminal 2 — Worker
+
+**Linux / macOS:**
+
+```bash
+# Activate venv if you haven't in this terminal
+source .venv/bin/activate
+python -m temporal.worker
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd C:\dev\temporal-security-scanner
+$env:PYTHONPATH = "C:\dev\temporal-security-scanner"
+python -m temporal.worker
+```
+
+You should see: `Payload encryption: ENABLED` and `Worker started on task queue 'security-scanner'`.
+
+### Terminal 3 — Run the demo
+
+**Option A — CLI (quick scan):**
+
+Set a GitHub token first so the scan doesn’t hit rate limits (see Prerequisites above). Then:
+
+```bash
+# Linux/macOS (activate venv if needed)
+export GITHUB_TOKEN=ghp_your_token_here
+python -m temporal.starter --org temporalio
+```
+
+```powershell
+# Windows
+$env:GITHUB_TOKEN = "ghp_your_token_here"
+cd C:\dev\temporal-security-scanner
+$env:PYTHONPATH = "C:\dev\temporal-security-scanner"
+python -m temporal.starter --org temporalio
+```
+
+You’ll get progress and a compliance report. The example uses the `temporalio` org (larger); without a token you’ll hit the 60 req/hr limit after ~20 repos.
+
+**Option B — Interactive narrated demo (“The 2am Incident”):**
+
+Walks through concepts, live scan, encryption proof, kill-the-worker test, and graceful cancel.
+
+```bash
+# Linux/macOS
+python demo_runner.py
+```
+
+```powershell
+# Windows (set GITHUB_TOKEN first so the demo doesn't hit rate limits)
+$env:GITHUB_TOKEN = "ghp_your_token_here"
+cd C:\dev\temporal-security-scanner
+$env:PYTHONPATH = "C:\dev\temporal-security-scanner"
+python demo_runner.py
+```
+
+Follow the prompts. When it asks to “kill the worker,” close the **Terminal 2** window, then open a new Terminal 2 and start the worker again; return to Terminal 3 and press Enter.
+
+### What to try next (Terminal 3)
+
+| Goal | Command |
+|------|---------|
+| Query progress (scan running) | `python -m temporal.starter --org temporalio --query` |
+| Start scan without waiting | `python -m temporal.starter --org temporalio --no-wait` |
+| Cancel a running scan | `python -m temporal.starter --org temporalio --cancel "reason"` |
+| Run tests (no server needed) | `pytest tests/ -v` |
+
+On Windows, run `cd C:\dev\temporal-security-scanner` and `$env:PYTHONPATH = "C:\dev\temporal-security-scanner"` in Terminal 3 before these commands if you haven’t already.
+
+**The kill test:** Start a scan with `--no-wait`, then close the worker window (Terminal 2). In the Web UI the workflow stays “Running.” Restart the worker; the scan resumes from the next repo.
+
+More detail: **[DEMO.md](DEMO.md)** (what we’re demonstrating and why), **[PLAYBOOK.md](PLAYBOOK.md)** (full demo script and timing), **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** (Windows-only setup and troubleshooting).
+
+---
+
+## Documentation map
+
+| Doc | Purpose |
+|-----|---------|
+| **README.md** (this file) | Run the demo + problem, solution, architecture |
+| **[DEMO.md](DEMO.md)** | What we show, why, and pre-presentation checklist |
+| **[PLAYBOOK.md](PLAYBOOK.md)** | Step-by-step demo script and what to say |
+| **[PRESENTATION.md](PRESENTATION.md)** | Talking points and Q&A prep |
+| **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** | Windows install, venv, and proven PowerShell sequence |
+
+---
 
 ## The Problem
 
@@ -85,90 +238,28 @@ This project demonstrates three layers of security hardening:
 ├── temporal/
 │   ├── __init__.py
 │   ├── models.py               # Shared dataclasses (ScanInput, RepoSecurityResult, etc.)
-│   ├── activities.py           # GitHub API calls wrapped as Temporal activities
+│   ├── activities.py          # GitHub API calls wrapped as Temporal activities
 │   ├── workflows.py            # Orchestration logic with signals and safe handler patterns
 │   ├── encryption.py           # PayloadCodec for end-to-end AES encryption
 │   ├── worker.py               # Security-hardened worker with encrypted data converter
-│   └── starter.py              # Starts, queries, and cancels workflows with encryption
+│   └── starter.py              # Starts, queries, and cancels workflows (CLI)
+├── demo_runner.py              # Interactive narrated demo ("The 2am Incident") — 3 terminals
+├── setup.ps1                   # Windows one-time setup (Temporal CLI + Python deps)
 ├── go_comparison/              # Annotated Go equivalent (reference, not runnable)
 │   ├── SDK_COMPARISON.md       # Side-by-side analysis of Python vs Go SDKs
 │   ├── models.go               # Go structs vs Python dataclasses
-│   ├── activities.go           # Go struct methods vs Python decorated functions
+│   ├── activities.go          # Go struct methods vs Python decorated functions
 │   ├── workflow.go             # Go function vs Python class — the key differences
 │   └── worker/main.go          # Go worker registration pattern
 ├── tests/
 │   └── test_workflow.py        # Tests using Temporal's in-memory test server
+├── DEMO.md                     # How to run the demo + thinking behind it
+├── PLAYBOOK.md                 # Demo script: steps, timing, troubleshooting
+├── PRESENTATION.md             # Talking points and Q&A
+├── WINDOWS_SETUP.md            # Windows-specific setup and demo steps
 ├── pyproject.toml
 └── README.md
 ```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.11+
-- [Temporal CLI](https://docs.temporal.io/cli) (includes a local dev server)
-
-### 1. Install Dependencies
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-### 2. Start the Temporal Dev Server
-
-In a separate terminal:
-
-```bash
-temporal server start-dev
-```
-
-This starts a local Temporal server with the Web UI at http://localhost:8233.
-
-### 3. Start the Worker
-
-In another terminal:
-
-```bash
-python -m temporal.worker
-```
-
-### 4. Run a Scan
-
-```bash
-# Scan a public org (no token needed for public repos)
-python -m temporal.starter --org eclipse-bci
-
-# Scan with authentication (for private repos and higher rate limits)
-export GITHUB_TOKEN=ghp_your_token_here
-python -m temporal.starter --org your-org
-
-# Start scan without waiting (fire and forget)
-python -m temporal.starter --org eclipse-bci --no-wait
-```
-
-### 5. Query Progress (While Running)
-
-```bash
-# Using the starter (recommended)
-python -m temporal.starter --org eclipse-bci --query
-
-# Or using the Temporal CLI directly
-temporal workflow query -w security-scan-eclipse-bci --type progress
-
-# Cancel a running scan gracefully
-python -m temporal.starter --org eclipse-bci --cancel "Rate limit hit"
-```
-
-### 6. Run Tests
-
-```bash
-pytest tests/ -v
-```
-
-Tests use Temporal's built-in time-skipping test environment — no external server needed.
 
 ## The Transformation: Step by Step
 
@@ -240,7 +331,9 @@ To see the original script (for comparison):
 ```bash
 cd before/
 pip install requests
-python scanner.py --org eclipse-bci
-# or with a token:
-python scanner.py --org eclipse-bci --token ghp_xxx
+# Use a GitHub token to avoid rate limits (60/hr without, 5000/hr with):
+export GITHUB_TOKEN=ghp_your_token_here
+python scanner.py --org temporalio
+# or pass token on the command line:
+python scanner.py --org temporalio --token ghp_xxx
 ```

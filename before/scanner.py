@@ -19,7 +19,7 @@ import time
 import requests
 
 
-DEFAULT_ORG = "eclipse-bci"
+DEFAULT_ORG = "temporalio"  # use a GitHub token to avoid rate limits (60/hr without, 5000/hr with)
 
 
 def fetch_repositories(org: str, token: str | None) -> list[dict]:

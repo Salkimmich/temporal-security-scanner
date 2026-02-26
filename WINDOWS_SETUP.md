@@ -5,6 +5,53 @@ Copy-paste each block in order. All commands are PowerShell.
 
 ---
 
+## Quick run (PowerShell commands that work)
+
+If you just want to get the demo running, use this sequence. It uses the project’s **setup.ps1** (which installs Temporal CLI and Python packages) and sets **PYTHONPATH** so `python demo_runner.py` and `python -m temporal.worker` find the `temporal` package.
+
+**Terminal 1 — Setup (one-time) then Temporal server**
+
+If setup needs to install Temporal CLI or change PATH, run PowerShell as Administrator first:
+
+```powershell
+powershell -Command "Start-Process powershell -Verb RunAs"
+```
+
+In the **new (elevated) window** that opens:
+
+```powershell
+cd C:\dev\temporal-security-scanner
+.\setup.ps1
+```
+
+After setup completes, start the Temporal dev server (in that same window or a new one):
+
+```powershell
+temporal server start-dev
+```
+
+**Terminal 2 — Worker**
+
+```powershell
+cd C:\dev\temporal-security-scanner
+$env:PYTHONPATH = "C:\dev\temporal-security-scanner"
+python -m temporal.worker
+```
+
+**Terminal 3 — Interactive demo**
+
+```powershell
+cd C:\dev\temporal-security-scanner
+$env:PYTHONPATH = "C:\dev\temporal-security-scanner"
+python demo_runner.py
+```
+
+**Why PYTHONPATH?** So that `import temporal` (and the `temporal` package) resolve to the project directory. If you use `pip install -e ".[dev]"` from the project root and run commands from there, you can sometimes skip it — but setting PYTHONPATH is the most reliable on Windows.
+
+**Why RunAs for setup?** Only if setup.ps1 needs to write to Program Files or update system PATH; otherwise run `.\setup.ps1` in a normal PowerShell.
+
+---
+
 ## Phase 1: Install Tools (one-time, ~10 minutes)
 
 ### 1A. Install Python 3.12
@@ -256,33 +303,23 @@ cd C:\dev\temporal-security-scanner
 
 ### TEST 1: Basic scan (happy path)
 
+**Set a GitHub token first** so the scan doesn’t hit rate limits (the demo uses the larger `temporalio` org). Create one at [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) with `repo` and `read:org`, then:
+
 ```powershell
-python -m temporal.starter --org eclipse-bci
+$env:GITHUB_TOKEN = "ghp_your_token_here"
+python -m temporal.starter --org temporalio
 ```
 
-You should see progress updates, then a compliance report. Takes 30-60 seconds.
+You should see progress updates, then a compliance report. Takes about 1–2 minutes for temporalio.
 
 After it finishes:
 - Check the Web UI (`http://localhost:8233`) — you should see the workflow as "Completed"
 - Click on it, then click any event — payloads should show `[binary/encrypted]`
-- Check the JSON output: `Get-Content security_scan_eclipse-bci.json`
+- Check the JSON output: `Get-Content security_scan_temporalio.json`
 
 ### TEST 2: The Kill Test
 
-This is the showstopper demo. You need a bigger org for this to work
-(eclipse-bci may finish too fast). Set a GitHub token first:
-
-```powershell
-$env:GITHUB_TOKEN = "ghp_your_token_here"
-```
-
-If you don't have a GitHub token, create one:
-1. Go to https://github.com/settings/tokens
-2. Click "Generate new token (classic)"
-3. Select scopes: `repo`, `read:org`
-4. Copy the token
-
-Now run the kill test:
+This is the showstopper demo. Use the same token; the scan is already targeting `temporalio`.
 
 ```powershell
 # Window 3: Start a scan without waiting
@@ -363,7 +400,7 @@ Status should show "cancelled" with partial results.
 python -m temporal.starter --org this-org-definitely-does-not-exist-xyz
 
 # Invalid token — should fail fast
-python -m temporal.starter --org eclipse-bci --token ghp_invalid_token_000
+python -m temporal.starter --org temporalio --token ghp_invalid_token_000
 ```
 
 Both should fail within a few seconds (not retry forever).
@@ -393,7 +430,7 @@ If you need to reset:
 ```powershell
 # Terminate any running workflows
 temporal workflow terminate -w security-scan-temporalio
-temporal workflow terminate -w security-scan-eclipse-bci
+temporal workflow terminate -w security-scan-temporalio
 
 # Or just restart the Temporal dev server (clears all history)
 # In Window 1: Ctrl+C, then:

@@ -25,11 +25,11 @@ DESIGN DECISION — WHY A DETERMINISTIC WORKFLOW ID:
     For a security scanner, one-at-a-time is the right semantic.
 
 Usage:
-    python -m temporal.starter --org eclipse-bci
-    python -m temporal.starter --org eclipse-bci --token ghp_xxx
-    python -m temporal.starter --org eclipse-bci --no-wait
-    python -m temporal.starter --org eclipse-bci --query
-    python -m temporal.starter --org eclipse-bci --cancel "Rate limit hit"
+    export GITHUB_TOKEN=ghp_xxx   # recommended: avoid rate limits (60/hr without, 5000/hr with)
+    python -m temporal.starter --org temporalio
+    python -m temporal.starter --org temporalio --no-wait
+    python -m temporal.starter --org temporalio --query
+    python -m temporal.starter --org temporalio --cancel "Rate limit hit"
 
 Environment variables:
     GITHUB_TOKEN             — GitHub Personal Access Token

@@ -4,6 +4,13 @@ This is your step-by-step guide to running, testing, and presenting this demo.
 Everything here has been thought through for executability — where something
 might break, it's called out explicitly.
 
+**Two ways to run the demo:**
+
+1. **CLI flow** (below) — Use `temporal.starter` and the Temporal Web UI. Best for a short, scripted demo (kill test, query, cancel).
+2. **Interactive narrated demo** — Run `python demo_runner.py` in a third terminal. Walks through concepts, live scan, encryption proof, kill test, and signals with on-screen narrative. See [Interactive demo (demo_runner.py)](#interactive-demo-demo_runnerpy) below.
+
+**On Windows:** Use [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for install and run steps; the kill test there uses "close the worker window" instead of `kill -9`.
+
 ---
 
 ## Prerequisites Checklist
@@ -84,22 +91,17 @@ isn't running yet. Start it first.
 
 ### Terminal 3: Run a Scan
 
+**You need a GitHub token** so the demo doesn’t hit rate limits. Without a token, GitHub allows 60 API requests/hour (~20 repos); we use the larger `temporalio` org, so the scan will fail or stall without a token. Create one at [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) with `repo` and `read:org`, then:
+
 ```bash
 cd temporal-security-scanner
-
-# Option A: With a GitHub token (recommended — higher rate limits)
 export GITHUB_TOKEN=ghp_your_token_here
 python -m temporal.starter --org temporalio
-
-# Option B: Without a token (60 requests/hour — fine for small orgs)
-python -m temporal.starter --org eclipse-bci
 ```
 
 You should see progress updates, then a compliance report.
 
-**⚠️ RATE LIMITS:** Without a token, GitHub allows 60 API requests/hour.
-Each repo requires 3 API calls. So you can scan ~20 repos before hitting limits.
-With a token: 5,000 requests/hour (~1,600 repos). For the demo, use a token.
+**⚠️ RATE LIMITS:** Without a token: 60 requests/hour (~20 repos). With a token: 5,000 requests/hour. For this demo we point at the larger org (`temporalio`), so a token is required for it to complete.
 
 ---
 
@@ -124,10 +126,25 @@ python -m temporal.starter --org YOUR_ORG --token ghp_xxx
 
 ---
 
-## Demo Script
+## Interactive demo (demo_runner.py)
 
-This is the exact sequence for a live presentation. Each section maps to the
-PRESENTATION.md talking points.
+For a **narrated, concept-by-concept** walkthrough (great for first-time viewers or when you want the story to drive the demo):
+
+1. **Terminal 1:** `temporal server start-dev`
+2. **Terminal 2:** `python -m temporal.worker`
+3. **Terminal 3:** `python demo_runner.py`
+
+The script runs **Part 1** (core concepts: problem, architecture, live scan, encryption proof, kill test, graceful cancel) with pauses and explanations. It then offers **Part 2** (production patterns: update handlers, durable timers, continue-as-new, schedules). All commands and "what to look for" are printed in the terminal; the narrative reflects the thinking behind the design (durable execution, HYOK encryption, queries vs signals).
+
+**Kill test in demo_runner:** When it asks you to kill the worker, **close the worker terminal window** (or Ctrl+C / Task Kill). On Windows there is no `kill -9`; closing the window is the equivalent. Then open a new terminal, start the worker again, and press Enter in the demo script to continue.
+
+**Windows (PowerShell):** To run the interactive demo you need `PYTHONPATH` set so `temporal` is found. In each terminal where you run Python (worker and demo_runner): `cd C:\dev\temporal-security-scanner`, then `$env:PYTHONPATH = "C:\dev\temporal-security-scanner"`. Optionally run `.\setup.ps1` first (in an elevated PowerShell if install needs it). Full sequence: [WINDOWS_SETUP.md](WINDOWS_SETUP.md#quick-run-powershell-commands-that-work).
+
+---
+
+## Demo Script (CLI flow)
+
+This is the exact sequence for a live presentation using the **starter** and Web UI. Each section maps to the PRESENTATION.md talking points.
 
 ### 1. Show the "Before" Script (2 min)
 
@@ -139,8 +156,9 @@ PRESENTATION.md talking points.
 #   - Sequential repo scanning (line ~83)
 #   - No retry, no resume, no state tracking
 
-# Optionally run it (fast for small orgs):
-python before/scanner.py --org eclipse-bci
+# Optionally run it (use a token to avoid rate limits):
+export GITHUB_TOKEN=ghp_your_token_here
+python before/scanner.py --org temporalio
 ```
 
 **What to say:** "This works. Until you hit a rate limit at repo 47 of 200
@@ -170,11 +188,12 @@ python -m temporal.starter --org temporalio --no-wait
 # Show the workflow is "Running"
 # Show the event history — activities completing
 
-# Terminal 2: KILL THE WORKER (not Ctrl+C — hard kill)
-# Find the worker PID:
+# Terminal 2: KILL THE WORKER (not graceful — hard kill)
+# Linux/macOS:
 ps aux | grep "temporal.worker" | grep -v grep
-# Kill it:
 kill -9 <PID>
+# Windows: close the worker PowerShell window (the X), or:
+# taskkill /F /IM python.exe /FI "WINDOWTITLE eq *temporal*"  (if needed)
 
 # ⭐ THE MOMENT: Go back to Web UI
 # The workflow is STILL "Running"
@@ -323,7 +342,7 @@ Beyond `pytest`, here's what to verify manually before recording.
 |------|---------|----------|
 | Start server | `temporal server start-dev` | Running on :7233 and :8233 |
 | Start worker | `python -m temporal.worker` | "Worker started" log |
-| Run scan | `python -m temporal.starter --org eclipse-bci` | Report printed, JSON saved |
+| Run scan | `export GITHUB_TOKEN=...; python -m temporal.starter --org temporalio` | Report printed, JSON saved |
 | Check Web UI | `http://localhost:8233` | Workflow shows "Completed" |
 | Check encryption | Click any event in Web UI | Payloads show "binary/encrypted" |
 
@@ -513,7 +532,7 @@ The timeout kills the workflow cleanly after 30 minutes regardless of state.
    Mitigation: this is acceptable for a Temporal demo (the point is the
    infrastructure, not the GitHub API accuracy).
 
-3. **`eclipse-bci` or your chosen org gets deleted/made private.**
+3. **`temporalio` or your chosen org gets deleted/made private.**
    The scan will fail with a non-retryable ValueError. Choose a stable org
    and verify it exists before recording.
 
@@ -570,3 +589,5 @@ The timeout kills the workflow cleanly after 30 minutes regardless of state.
 | `go_comparison/SDK_COMPARISON.md` | ~240 | Feature-by-feature comparison | SDK selection guidance |
 | `PRESENTATION.md` | ~200 | Talk script and Q&A prep | Presentation narrative |
 | `README.md` | ~240 | Project overview | Before/after comparison |
+| `DEMO.md` | — | How to run the demo + thinking behind it | Demo flow, checklist, two options |
+| `demo_runner.py` | ~1100 | Interactive narrated demo ("The 2am Incident") | Part 1 + Part 2, concepts + live proof |

@@ -79,9 +79,9 @@ Target: 14-17 minute walkthrough for Temporal engineers, presented as if speakin
 **The Kill Test** (most powerful visual):
 
 1. Show Temporal Web UI at `http://localhost:8233`
-2. Start a scan: `python -m temporal.starter --org eclipse-bci --no-wait`
+2. Start a scan (set GITHUB_TOKEN first): `python -m temporal.starter --org temporalio --no-wait`
 3. Show events appearing in Web UI
-4. Query progress: `python -m temporal.starter --org eclipse-bci --query`
+4. Query progress: `python -m temporal.starter --org temporalio --query`
 5. **Kill the worker hard**: `kill -9 $(pgrep -f temporal.worker)`
 6. Show Web UI — workflow still "Running" (tasks timing out, waiting for a worker)
 7. Restart worker: `python -m temporal.worker`

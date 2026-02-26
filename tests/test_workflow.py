@@ -32,6 +32,7 @@ Run with:
     pytest tests/ -v
 """
 
+import concurrent.futures
 import dataclasses
 import uuid
 
@@ -142,6 +143,10 @@ def mock_generate_report(org: str, results: list[RepoSecurityResult]) -> dict:
 
 def _make_worker(client: Client, **kwargs) -> Worker:
     """Create a worker with mock activities for testing."""
+    # Sync activities require an activity_executor (same as production worker).
+    executor = kwargs.pop("activity_executor", None)
+    if executor is None:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
     return Worker(
         client,
         task_queue=kwargs.pop("task_queue", TASK_QUEUE),
@@ -151,6 +156,7 @@ def _make_worker(client: Client, **kwargs) -> Worker:
             mock_check_repo_security,
             mock_generate_report,
         ],
+        activity_executor=executor,
         **kwargs,
     )
 
@@ -412,6 +418,7 @@ async def test_workflow_with_encryption():
                 mock_check_repo_security,
                 mock_generate_report,
             ],
+            activity_executor=concurrent.futures.ThreadPoolExecutor(max_workers=4),
         ):
             result = await encrypted_client.execute_workflow(
                 SecurityScanWorkflow.run,
