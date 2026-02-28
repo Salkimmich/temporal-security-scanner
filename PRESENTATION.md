@@ -1,8 +1,10 @@
 # Presentation Talking Points
 
-## "What breaks when your script goes to production: Temporalizing a GitHub Security Scanner"
+## "One workflow, many jurisdictions: Temporalizing a GitHub Security Scanner"
 
 Target: 14-17 minute walkthrough for Temporal engineers, presented as if speaking to a developer meetup/conference audience. Can trim Go Lens section to hit 15 minutes.
+
+**Overarching story:** We run the same security scan for teams in multiple countries. EU data stays in the EU; US in the US. One workflow definition, one codebase — but we need durability (the 2am crash), encryption (platform never sees our secrets), and sovereignty (data never leaves the region we chose). The demo shows how Temporal gives us all three so we can ship one app and run it in any region with the same guarantees.
 
 ---
 
@@ -10,7 +12,7 @@ Target: 14-17 minute walkthrough for Temporal engineers, presented as if speakin
 
 **Open with the relatable hook:**
 
-"I maintain security scanning tools for open source foundations. I wrote a Python script that checks whether repos in a GitHub org have secret scanning, Dependabot, and code scanning turned on. It's about 100 lines. It works great — on my laptop, against a 20-repo org. Then I pointed it at an organization with 400 repositories."
+"We run this security scan for teams in multiple countries. Same workflow — but EU data has to stay in the EU, US in the US, and we can't have the platform see our tokens or findings. I wrote a Python script that checks whether repos in a GitHub org have secret scanning, Dependabot, and code scanning turned on. It's about 100 lines. It works on my laptop. Then I pointed it at 400 repositories, and it broke — and even when it didn't break, we had no story for encryption or residency."
 
 **Show `before/scanner.py` and highlight the fragility:**
 
@@ -19,7 +21,7 @@ Target: 14-17 minute walkthrough for Temporal engineers, presented as if speakin
 - "This `time.sleep(60)` for rate limits? That's hope-driven development."
 - "And while this runs — which takes 20 minutes for a large org — I have zero visibility into progress."
 
-**The real story:** "In open source foundations, security compliance isn't optional. When you're scanning hundreds of repos across CNCF, Eclipse, Apache — you need something that survives a laptop lid closing, a network drop, or a worker node recycling."
+**The real story:** "We need one codebase that runs everywhere — and meets local confidentiality and residency requirements. Durability (survive crashes), encryption (platform never sees plaintext), and sovereignty (data stays in-region). Temporal gives us the primitives; we'll go deep on encryption and sovereignty so you can run the same workflow in any jurisdiction."
 
 ---
 

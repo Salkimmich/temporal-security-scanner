@@ -46,7 +46,8 @@ import (
 	scanner "github.com/salkimmich/temporal-security-scanner/go_comparison"
 )
 
-const TaskQueue = "security-scanner"
+// TaskQueue is separate from the Python worker so both can run against the same server.
+const TaskQueue = "security-scanner-go"
 
 func main() {
 	// Connect to Temporal server

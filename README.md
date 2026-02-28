@@ -1,6 +1,6 @@
 # Temporalizing a GitHub Security Scanner
 
-A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application, prepared for presentation to Temporal engineers as if explaining to a developer audience at a meetup or conference. Click on the image below to watch the demo; read on for how to get started and how each presentation objective is covered.
+A before-and-after demonstration of converting a real-world Python script into a Temporal workflow application — **one workflow, many jurisdictions**. We run the same security scan for teams in multiple countries; EU data stays in the EU, US in the US. The demo shows how to get durability (the 2am crash), encryption (platform never sees secrets), and sovereignty (data stays in the region you chose) so one codebase can run everywhere with the same guarantees. Prepared for presentation to Temporal engineers as if explaining to a developer meetup or conference. Click on the image below to watch the demo; read on for how to get started and how each objective is covered.
 
 [<img src="Screenshot 2026-02-20 at 09.43.19.png" alt="Demo screenshot">](https://drive.google.com/file/d/1dgRSQyodot7vif9Y_COP-WTf4_wOIndf/view?usp=sharing)
 
@@ -11,7 +11,7 @@ A before-and-after demonstration of converting a real-world Python script into a
 - **Challenges (failure handling, state management, scaling)** — [What Breaks in Production](#what-breaks-in-production) spells out the challenges. The [What Temporal Gives Us](#what-temporal-gives-us) table shows how each challenge is addressed (retries, replay, queries, signals, encryption). [The Kill Test](#the-kill-test) and the live demo prove durability: kill the worker mid-scan and the workflow resumes from the next repo.
 - **Why the Temporalized version improves** — Summarized in the same table and in [Security Architecture](#security-architecture) (payload encryption, safe signal handling, defense in depth). The demo itself—running a scan, querying progress, killing the worker, and watching recovery—is the evidence.
 - **Trade-offs and considerations** — [Trade-offs and Considerations](#trade-offs-and-considerations) covers added complexity, infrastructure dependency, determinism constraints, and serialization. [Key Design Decisions](#key-design-decisions) documents why we chose synchronous activities, batches of 10, `ValueError` as non-retryable, and so on.
-- **Documenting and teaching for a developer audience** — This README explains how to get the demo up and running ([Run the demo](#run-the-demo-quick-start) and [Project Structure](#project-structure)). [DEMO.md](DEMO.md) ties the demo flow to the thinking behind it; [PLAYBOOK.md](PLAYBOOK.md) is the step-by-step runbook and troubleshooting; [PRESENTATION.md](PRESENTATION.md) is the talking points and Q&A prep for the live walkthrough. The interactive [`demo_runner.py`](demo_runner.py) (“The 2am Incident”) walks through concepts, encryption, the kill test, and graceful cancel with on-screen narrative.
+- **Documenting and teaching for a developer audience** — This README explains how to get the demo up and running ([Run the demo](#run-the-demo-quick-start) and [Project Structure](#project-structure)). [DEMO.md](DEMO.md) ties the demo flow to the thinking behind it; [PLAYBOOK.md](PLAYBOOK.md) is the step-by-step runbook and troubleshooting; [PRESENTATION.md](PRESENTATION.md) is the talking points and Q&A prep for the live walkthrough. The interactive [`demo_runner.py`](demo_runner.py) (“The 2am Incident”) walks through concepts, encryption, sovereignty architecture, the kill test, and graceful cancel with on-screen narrative.
 - **Deliverables** — **Before/after code:** `before/scanner.py` (original) and `temporal/` (Worker, Workflow, Activities, plus encryption, starter, and tests). **README:** the section below gets you from clone to a running scan in three terminals. The app is **testable** (`pytest tests/ -v` uses Temporal’s test server; no external server needed) and **resilient** (retries, timeouts, replay, and the kill test).
 
 ---
@@ -111,7 +111,7 @@ You’ll get progress and a compliance report. The example uses the `temporalio`
 
 **Option B — Interactive narrated demo (“The 2am Incident”):**
 
-Walks through concepts, live scan, encryption proof, kill-the-worker test, and graceful cancel.
+Walks through concepts, encryption, sovereignty architecture (keeping data in-region), live scan, kill-the-worker test, and graceful cancel.
 
 ```bash
 # Linux/macOS
@@ -150,6 +150,7 @@ More detail: **[DEMO.md](DEMO.md)** (what we’re demonstrating and why), **[PLA
 | Doc | Purpose |
 |-----|---------|
 | **README.md** (this file) | Run the demo + problem, solution, architecture |
+| **[ENCRYPTION.md](ENCRYPTION.md)** | Payload encryption: testing vs production, expert perspective (threat model, AE), Temporal docs |
 | **[DEMO.md](DEMO.md)** | What we show, why, and pre-presentation checklist |
 | **[PLAYBOOK.md](PLAYBOOK.md)** | Step-by-step demo script and what to say |
 | **[PRESENTATION.md](PRESENTATION.md)** | Talking points and Q&A prep |
@@ -230,6 +231,8 @@ This project demonstrates three layers of security hardening:
 
 **What's NOT encrypted (by design):** Search attributes bypass the codec (used for indexing, not secrets). Failure messages/stack traces are configurable via `encode_common_attributes` on the failure converter — omitted here for demo readability.
 
+For testing vs production guidance and a full **expert perspective** (threat model, authenticated encryption, IV/nonce, what encryption does *not* protect against, Codec Server security), see **[ENCRYPTION.md](ENCRYPTION.md)**. The interactive demo **Act 3** is a detailed-understanding deep dive on encryption. For **data sovereignty and residency** — how to keep Temporal and data in the same region or country — see **[SOVEREIGNTY.md](SOVEREIGNTY.md)**; the demo (Act 4) covers sovereignty architecture.
+
 ## Project Structure
 
 ```
@@ -244,7 +247,9 @@ This project demonstrates three layers of security hardening:
 │   ├── encryption.py           # PayloadCodec for end-to-end AES encryption
 │   ├── worker.py               # Security-hardened worker with encrypted data converter
 │   └── starter.py              # Starts, queries, and cancels workflows (CLI)
-├── demo_runner.py              # Interactive narrated demo ("The 2am Incident") — 3 terminals
+├── demo_runner.py              # Interactive demo — Act 3 = encryption (detailed), Act 4 = sovereignty (detailed)
+├── ENCRYPTION.md               # Payload encryption: testing vs production, decisions, Temporal docs
+├── SOVEREIGNTY.md               # Data sovereignty: keep Temporal in-region (Cloud region, self-hosted, workers)
 ├── setup.ps1                   # Windows one-time setup (Temporal CLI + Python deps)
 ├── go_comparison/              # Annotated Go equivalent (reference, not runnable)
 │   ├── SDK_COMPARISON.md       # Side-by-side analysis of Python vs Go SDKs

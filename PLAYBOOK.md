@@ -134,7 +134,7 @@ For a **narrated, concept-by-concept** walkthrough (great for first-time viewers
 2. **Terminal 2:** `python -m temporal.worker`
 3. **Terminal 3:** `python demo_runner.py`
 
-The script runs **Part 1** (core concepts: problem, architecture, live scan, encryption proof, kill test, graceful cancel) with pauses and explanations. It then offers **Part 2** (production patterns: update handlers, durable timers, continue-as-new, schedules). All commands and "what to look for" are printed in the terminal; the narrative reflects the thinking behind the design (durable execution, HYOK encryption, queries vs signals).
+The script runs **Part 1** (core concepts: problem, architecture, encryption, sovereignty architecture, live scan, kill test, graceful cancel) with pauses and explanations. It then offers **Part 2** (production patterns: update handlers, durable timers, continue-as-new, schedules). All commands and "what to look for" are printed in the terminal; the narrative reflects the thinking behind the design (durable execution, HYOK encryption, queries vs signals).
 
 **Kill test in demo_runner:** When it asks you to kill the worker, **close the worker terminal window** (or Ctrl+C / Task Kill). On Windows there is no `kill -9`; closing the window is the equivalent. Then open a new terminal, start the worker again, and press Enter in the demo script to continue.
 

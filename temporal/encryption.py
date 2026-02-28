@@ -30,6 +30,20 @@ IMPORTANT SECURITY NOTES:
    we omit this in the demo).
 3. The encryption key must be managed securely (env var, secrets manager, etc.).
    Rotating keys requires a versioned codec that can decrypt with old keys.
+
+EXPERT NOTES (for security/crypto reviewers):
+- Threat model: We protect against Temporal server/DB access (they see only
+  ciphertext). We do NOT protect against compromised client/worker (they hold
+  the key), key theft, or in-memory exposure. Transport security (TLS) is
+  separate; use it in production.
+- Authenticated encryption: Fernet is Encrypt-then-MAC (AES-128-CBC + HMAC-SHA256).
+  Never use raw encryption without authentication; tampering could alter or leak
+  plaintext. Fernet verifies the MAC on decrypt and fails on tampering.
+- IV: Fernet embeds a unique IV per token (from its structured format). We do
+  not reuse IVs. For production AES-GCM, use a unique nonce per encryption and
+  never reuse under the same key.
+- See ENCRYPTION.md for full "Expert perspective" (threat model, AE, Codec
+  Server security, what encryption does not do).
 """
 
 import os
@@ -114,6 +128,8 @@ class EncryptionCodec(PayloadCodec):
                 decrypted.ParseFromString(self._fernet.decrypt(p.data))
                 result.append(decrypted)
             else:
-                # Pass through unencrypted payloads (e.g., from before encryption was enabled)
+                # Pass through payloads we didn't encrypt (e.g. before encryption was enabled).
+                # Security: unencrypted payloads in history will be returned as plaintext; ensure
+                # all writers use the codec in production, or consider failing on unknown encoding.
                 result.append(p)
         return result

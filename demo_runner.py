@@ -3,16 +3,18 @@
 The 2am Incident — A Temporal Security Scanner Demo
 =====================================================
 
-Built by Sal Kimmich to demonstrate that durable execution isn't a
-feature you bolt on — it's an architectural decision that changes
-what's possible.
+One workflow, many jurisdictions. Built by Sal Kimmich to demonstrate
+that we run the same security scan for teams in multiple countries —
+EU data in the EU, US in the US — with durability (the 2am crash),
+encryption (platform never sees secrets), and sovereignty (data stays
+in-region). One codebase, same guarantees, anywhere.
 
 This demo has two parts:
 
-    PART 1 — CORE CONCEPTS  (~5 minutes)
-    Start a real security scan of Temporal's GitHub organization,
-    prove the payloads are encrypted, kill the worker mid-scan, watch
-    it recover, and cancel gracefully. Five Temporal primitives, fast.
+    PART 1 — CORE CONCEPTS  (~6 minutes)
+    Deep dives on encryption and sovereignty, then a real security scan
+    of Temporal's GitHub org, kill the worker mid-scan, watch it recover,
+    and cancel gracefully.
 
     PART 2 — PRODUCTION PATTERNS  (~7 minutes, optional)
     Live-reconfigure a running scan, pause it with a crash-proof
@@ -295,34 +297,49 @@ async def introduction():
         by Sal Kimmich
     """)
 
+    teach("""
+        If you're responsible for confidentiality and data residency —
+        CISO, compliance, architect in a regulated or multi-region org —
+        this demo is built so you leave knowing exactly what you can
+        have confidence in for encryption and sovereignty, and why.
+    """)
+
+    teach("""
+        ONE WORKFLOW, MANY JURISDICTIONS — same code, same guarantees,
+        in any region. That's the theme. We'll show evidence of it
+        throughout and end with a clear summary of your protections.
+    """)
+
     story("""
-        I built this because I've been the person staring at a dead
-        terminal at 2am, re-running a script that lost four hours of
-        API calls to a process crash. The standard fixes — more
-        try/except blocks, a Redis checkpoint, a database-backed
-        queue — all add complexity to paper over a fundamental gap:
-        your application logic shouldn't be responsible for its own
-        durability.
+        We run the same security scan for teams in multiple countries.
+        EU data must stay in the EU. US data in the US. One workflow
+        definition, one codebase — but we have to meet local confidentiality
+        and residency requirements everywhere.
 
-        Temporal separates the two. Your code says what to do. The
-        platform guarantees it finishes, even when infrastructure
-        doesn't cooperate.
+        That's the story: one workflow, many jurisdictions. Durability
+        matters (the 2am crash, the worker that died — Temporal fixes that).
+        But so do two more things: the platform must never see our secrets
+        (encryption), and the platform must never hold our data outside
+        the region we chose (sovereignty). Get those right, and we can
+        ship one app and run it in any region with the same guarantees.
 
-        This demo proves that claim with a live system. We'll scan
-        Temporal's own GitHub organization (~194 repos) for security
-        compliance posture — real API calls, real encryption, real
-        crashes, real recovery.
+        This demo proves it with a live system. We'll scan Temporal's
+        own GitHub organization (~194 repos) — real API calls, real
+        encryption, real crashes, real recovery — and we'll go deep on
+        how encryption and sovereignty architecture let you run the same
+        workflow safely in many regions.
     """)
 
     concept_box("WHAT YOU'LL LEARN", """
-        PART 1 — Core Concepts  (~5 minutes)
-          Durable execution, payload encryption, queries, signals,
-          idempotent retry. Start a scan, prove encryption, kill
-          the worker, watch it recover, cancel gracefully.
+        PART 1 — Core Concepts (one workflow, many jurisdictions)
+          Act 3: Encryption — so the platform never sees plaintext;
+          detailed understanding (what's encrypted, threat model, AE).
+          Act 4: Sovereignty — so data stays in the region you chose;
+          namespace-per-region, workers in-region, Cloud vs self-hosted.
+          Then: live scan, kill the worker, recover, cancel gracefully.
 
         PART 2 — Production Patterns  (~7 minutes, optional)
-          Update handlers with validators, durable timers that
-          survive crashes, continue-as-new for bounded history,
+          Update handlers, durable timers, continue-as-new,
           and Temporal's built-in scheduler.
     """)
 
@@ -341,8 +358,11 @@ async def introduction():
 async def part1_intro():
     banner("PART 1: CORE CONCEPTS", BG_BLUE)
     story("""
-        The fast version. Five Temporal primitives, each demonstrated
-        live with a real security scan.
+        One workflow, many jurisdictions. We need durability (so the scan
+        survives crashes), encryption (so the platform never sees our
+        tokens or findings), and sovereignty (so we can run this in EU
+        or US or APAC and keep data in-region). Five Temporal primitives
+        plus two deep dives — each demonstrated with a real security scan.
     """)
 
 
@@ -356,12 +376,17 @@ async def act_1():
         that calls an API in a loop, prints results, and exits. It works
         on your laptop at 2pm on a Tuesday. It fails at 3am on the server.
 
-        Five failure modes. Each one is a different Temporal concept.
+        When you run the same workflow in multiple regions, you also need
+        the platform to never see your secrets (encryption) and never
+        hold your data outside the region you chose (sovereignty). So
+        we'll fix five failure modes — each a Temporal concept — and then
+        go deep on encryption and sovereignty so one codebase can run
+        everywhere with the same guarantees.
     """)
 
     wait()
 
-    print(f"  {WHITE}{BOLD}1. No Fault Tolerance{RESET}\n")
+    print(f"  {WHITE}{BOLD}1. No Fault Tolerance (general best practice){RESET}\n")
     compare(
         "Without Temporal:",
         "One API error -> sys.exit(1). Repo 47 of 200 returns 500?\n"
@@ -384,7 +409,7 @@ async def act_1():
 
     wait()
 
-    print(f"  {WHITE}{BOLD}2. No State Persistence{RESET}\n")
+    print(f"  {WHITE}{BOLD}2. No State Persistence (general best practice){RESET}\n")
     compare(
         "Without Temporal:",
         "Your laptop lid closes at repo 150. SSH drops. Process killed.\n"
@@ -407,7 +432,7 @@ async def act_1():
 
     wait()
 
-    print(f"  {WHITE}{BOLD}3. No Observability{RESET}\n")
+    print(f"  {WHITE}{BOLD}3. No Observability (general best practice){RESET}\n")
     compare(
         "Without Temporal:",
         '"How far along is the scan?" -> Parse stdout. Hope the\n'
@@ -426,34 +451,43 @@ async def act_1():
 
     wait()
 
-    print(f"  {WHITE}{BOLD}4. No Encryption{RESET}\n")
+    print(f"  {WHITE}{BOLD}4. No Encryption (core to our story){RESET}\n")
     compare(
         "Without Temporal:",
         "GitHub token in env vars, passed through function args, maybe\n"
         "logged to stdout. No encryption at rest anywhere.",
         "With Temporal:",
-        "PayloadCodec encrypts ALL data client-side with Fernet\n"
-        "(AES-128-CBC + HMAC-SHA256). The server stores ciphertext.\n"
-        "Token never visible at rest."
+        "PayloadCodec encrypts ALL data client-side with Fernet.\n"
+        "The server stores ciphertext. For one workflow, many jurisdictions:\n"
+        "the platform in each region never sees plaintext."
     )
 
     wait()
 
-    print(f"  {WHITE}{BOLD}5. Sequential Execution{RESET}\n")
+    print(f"  {WHITE}{BOLD}5. Sequential Execution (same workflow, any region){RESET}\n")
     compare(
         "Without Temporal:",
         "200 repos x 3 API calls x ~1s each = 10 minutes minimum.\n"
         "One repo at a time. No concurrency.",
         "With Temporal:",
         "Batches of 10 repos scanned in parallel. 200 repos in ~2 minutes.\n"
-        "asyncio.gather() with return_exceptions=True: one failure\n"
-        "doesn't cancel the batch."
+        "Same workflow runs efficiently in EU or US — general best practice\n"
+        "that makes one codebase viable everywhere."
     )
 
     story("""
         Five failures. Each one caused by the same root problem:
         application logic tangled with infrastructure concerns.
         Temporal separates them.
+    """)
+
+    teach("""
+        For our story (one workflow, many jurisdictions): failure modes
+        1–3 (fault tolerance, state, observability) are general best
+        practices — they make any Temporal app robust. Modes 4 and 5
+        are directly part of the story: encryption so the platform
+        never sees our secrets in any region, and concurrency so the
+        same workflow runs efficiently everywhere.
     """)
 
 
@@ -515,6 +549,13 @@ async def act_2():
         history, not just the last failed step.
     """)
 
+    teach("""
+        This same architecture is what lets us run one workflow in many
+        regions: same workflow and activity code everywhere; only the
+        namespace (region) and worker placement change. We'll see
+        encryption and sovereignty in the next two acts.
+    """)
+
     quiz(
         "After a crash, Temporal replays a workflow's history.\n"
         "  What happens when replay reaches a completed activity?",
@@ -535,13 +576,334 @@ async def act_2():
     )
 
 
-# ── Act 3: Live Scan + Encryption ───────────────────────────────────
+# ── Act 3: Encryption — Detailed Understanding ──────────────────────
 
-async def act_3():
-    banner("ACT 3: THE LIVE PROOF")
+async def act_3_encryption_deep_dive():
+    banner("ACT 3: ENCRYPTION — DETAILED UNDERSTANDING", BG_CYAN)
+
+    story("""
+        One workflow, many jurisdictions: the platform must never see our
+        secrets. In the EU we use one key; in the US another. Same code,
+        per-region or per-namespace keys. This act is a focused deep dive
+        on payload encryption — what gets encrypted, what doesn't, threat
+        model, authenticated encryption, and how testing differs from
+        production so you can run this workflow safely in any region.
+    """)
+
+    # ── Why encrypt ──
+    definition("WHY ENCRYPT AT ALL", """
+        By default Temporal stores all workflow and activity inputs and
+        outputs in event history in PLAINTEXT. Anyone with DB or server
+        access can read: workflow args (e.g. org, token), activity
+        results (repo names, findings), queries, signals, memo.
+
+        For a security scanner that means API tokens and compliance data
+        are visible at rest. Temporal does not encrypt payloads for you —
+        encryption is the client's responsibility. You implement a
+        Payload Codec so data is encrypted before it leaves your process.
+    """)
+    wait()
+
+    # ── Where encryption fits ──
+    concept_box("Where Encryption Fits in the Pipeline", """
+        Your code (Python objects)
+          → Data Converter (objects → bytes, e.g. JSON)
+          → Payload Codec (bytes → encrypted bytes)  ← YOU implement this
+          → gRPC → Temporal Server (stores only ciphertext)
+
+        The server never sees the key or the plaintext. Only the client
+        (starter) and worker use the codec; they must share the same key.
+        Temporal: "Your data exists unencrypted only on the Client and
+        the Worker process... on hosts that you control." Hold-your-own-key.
+    """)
+
+    definition("PAYLOAD CODEC", """
+        A Payload Codec transforms an array of Payloads (bytes) into another
+        array of Payloads — encrypt or compress. It runs OUTSIDE the
+        workflow sandbox, so you can use non-deterministic operations
+        (encryption, KMS calls). Order: Payload Converter (object → bytes)
+        runs first; then the Codec (bytes → bytes).
+    """)
+    wait()
+
+    # ── What gets encrypted vs not ──
+    concept_box("What Gets Encrypted vs What Does Not", """
+        ENCRYPTED (when you use a custom Payload Codec):
+          • Workflow input and output
+          • Activity input and output
+          • Query inputs and results, signal inputs, memo
+          • Local activity and side-effect results (when applicable)
+
+        NOT ENCRYPTED (by design — server needs these to operate):
+          • Search attributes — server-side indexing. Never put secrets here.
+          • Workflow type name, activity names, task queue — the "envelope"
+            the server needs to route and schedule work.
+          • Failure messages and stack traces — unless you configure the
+            Failure Converter to encode them (we don't in this demo).
+    """)
+    insight("""
+        If you put a secret in a search attribute, it bypasses the codec.
+        Design your data model so secrets only go through workflow/activity
+        payloads, memo, or signal payloads — all of which go through the codec.
+    """)
+    wait()
+
+    # ── Threat model ──
+    concept_box("Threat Model — What We Protect (and Don't)", """
+        PROTECTED:
+          • Storage / DB access — Anyone with read access to Temporal's
+            persistence sees only ciphertext. No key, no plaintext. Cloud
+            provider staff, DBAs, exfiltrated DB: all see ciphertext.
+          • Server — The Temporal server never has the key. It cannot
+            decrypt for logging, analytics, or support. HYOK.
+
+        NOT PROTECTED:
+          • Compromised client or worker — They have the key. Protect the
+            key and the hosts (hardening, access control, secrets management).
+          • Key theft — Env dump, secrets manager breach: all ciphertext
+            at risk. Rotation and envelope encryption limit blast radius.
+          • In-memory exposure — Plaintext and key exist in process memory
+            during encode/decode. Memory dumps, debuggers: general limitation
+            of application-level encryption.
+          • Wire — Codec is application-layer; use TLS for transport.
+    """)
+    wait()
+
+    # ── Authenticated encryption ──
+    concept_box("Authenticated Encryption (AE) — Why It Matters", """
+        We use Fernet: AES-128-CBC plus HMAC-SHA256 (encrypt-then-MAC).
+        That gives CONFIDENTIALITY (only key holders read) and INTEGRITY
+        (tampering detected; decrypt fails if ciphertext is modified).
+
+        Never use "encryption only" without authentication for sensitive
+        data — unauthenticated encryption (e.g. raw AES-CBC) is vulnerable
+        to tampering: attackers can sometimes alter or infer plaintext.
+        Production often uses AES-256-GCM (AEAD); same idea: authenticate
+        what you decrypt. See ENCRYPTION.md for IV/nonce and key handling.
+    """)
+    wait()
+
+    # ── Testing vs production ──
+    concept_box("Testing vs Production — Clear Split", """
+        TESTING (this demo): Single key (Fernet). Key from env or dev key.
+        No rotation; no Codec Server. Web UI shows [binary/encrypted].
+        Goal: prove the pattern, zero config.
+
+        PRODUCTION: Envelope encryption (DEK + KEK in KMS). Key rotation
+        (codec supports multiple key versions). Codec Server so Web UI/CLI
+        can decode on demand — you secure and operate it. Optionally
+        encrypt failure messages via Failure Converter.
+    """)
+
+    compare(
+        "Good enough for TESTING (this demo)",
+        "• Single symmetric key (Fernet: AES-128-CBC + HMAC-SHA256)\n"
+        "• Key from env (TEMPORAL_ENCRYPTION_KEY) or hardcoded dev key\n"
+        "• No key rotation; no Codec Server\n"
+        "• Web UI shows [binary/encrypted] — you can't read payloads there\n"
+        "• Goal: prove the pattern, zero config for demos",
+        "Good enough for PRODUCTION",
+        "• Envelope encryption: DEK + KEK in KMS (AWS, GCP, Vault)\n"
+        "• Key rotation: multiple key versions; old history still decrypts\n"
+        "• Codec Server: HTTP service with same codec; auth and operate it\n"
+        "• Optionally encrypt failure messages via Failure Converter"
+    )
+
+    teach("""
+        In this repo we use Fernet and a dev key so the demo works with
+        zero config. For production you swap in envelope encryption and
+        a KMS. The PayloadCodec pattern is the same; only the key source
+        and rotation logic change. Full write-up: ENCRYPTION.md.
+    """)
+
+    why_it_matters("""
+        A detailed understanding of encryption here avoids two mistakes:
+        (1) leaking tokens and compliance data by assuming Temporal encrypts
+        for you, or (2) over-building with a KMS and Codec Server for a
+        local demo. Testing = one key, prove the pattern. Production =
+        key management, rotation, and optional Codec Server.
+    """)
+
+    insight("""
+        For sovereignty and encryption: this act is what gives you
+        confidence that the platform never sees your plaintext in any
+        region — same code, per-region keys if you want. Next: sovereignty
+        (where the data lives).
+    """)
+
+    wait("Press Enter to continue to Act 4 (Sovereignty architecture)...")
+
+
+# ── Act 4: Sovereignty Architecture — Detailed Understanding ──────────
+
+async def act_4_sovereignty():
+    banner("ACT 4: SOVEREIGNTY — DETAILED UNDERSTANDING", BG_CYAN)
+
+    story("""
+        One workflow, many jurisdictions: data from the EU must stay in
+        the EU; data from the US in the US. Same workflow definition,
+        different namespaces per region, workers in-region. This act is
+        a focused deep dive on sovereignty-respecting architecture —
+        why residency comes first, which levers to use (Cloud region,
+        self-hosted, workers, namespace-per-region), and how to design
+        so one codebase runs everywhere without moving data across borders.
+    """)
+
+    # ── Why residency first ──
+    concept_box("Residency First, Encryption Second", """
+        Encryption protects WHO CAN READ the data. Sovereignty and
+        residency rules are about WHERE THE DATA LIVES and who has
+        jurisdiction. Encryption does not move data: ciphertext
+        stored in another country is still "data in that country"
+        for many regulators.
+
+        To guarantee "no sensitive data in another nation's server,"
+        you must run Temporal and its storage IN that nation (or
+        region). Then add encryption as defense in depth. See
+        ENCRYPTION.md for why encryption alone isn't enough.
+    """)
+    insight("""
+        "In-region" means: Temporal server, persistence (DB), and
+        workers all in the same jurisdiction. If any of those is
+        elsewhere, you no longer have a clean residency story.
+    """)
+    wait()
+
+    # ── Lever 1: Temporal Cloud namespace region ──
+    definition("LEVER 1: TEMPORAL CLOUD — NAMESPACE REGION", """
+        Each Namespace is created in a specific region. All workflow
+        execution and data for that namespace stay in that region;
+        Temporal does not share data processing or storage across
+        regional boundaries for a given namespace.
+
+        What you do: When creating the namespace, select the region
+        that matches your residency requirement (e.g. EU Frankfurt
+        for EU data, Sydney for Australian data). Result: workflow
+        history, visibility data, and all Temporal state for that
+        namespace are stored and processed only in that region.
+
+        Caveat: If you enable multi-region replication for failover,
+        replicated data will exist in other regions. For strict
+        single-region sovereignty, do not enable replication (or
+        confirm with Temporal that a non-replicated namespace is
+        available).
+    """)
+    wait()
+
+    # ── Lever 2: Self-hosted ──
+    concept_box("Lever 2: Self-Hosted Temporal in Your Region", """
+        Deploy the Temporal server (frontend, history, matching) and
+        its persistence store (PostgreSQL, MySQL, or Cassandra)
+        entirely within your chosen region or data center.
+
+        Result: No Temporal data leaves your region; you control the
+        entire stack and its location. Run workers in the same region
+        so activity execution and any data they touch also stay
+        in-region. Best for: government, regulated industry,
+        on-prem-only policies.
+    """)
+    wait()
+
+    # ── Lever 3: Workers in same region ──
+    concept_box("Lever 3: Worker Placement in the Same Region", """
+        Even if the Temporal server is in the right region, workers
+        execute your activity code and may call external APIs or
+        databases. For sovereignty you want workers in the SAME region
+        as the Temporal server (and as any data sources or sinks).
+
+        What you do: Deploy workers in the same cloud region (or same
+        country) as your Temporal namespace. Use the same VPC or
+        private connectivity where possible. Result: workflow
+        orchestration and activity execution both run in-region; no
+        cross-border traffic for execution or data.
+
+        Temporal Cloud: You can connect from anywhere; for clearest
+        residency story, run workers in the same region as the
+        namespace.
+    """)
+    wait()
+
+    # ── Lever 4: Namespace-per-region ──
+    definition("LEVER 4: NAMESPACE-PER-REGION (Multi-Region Orgs)", """
+        If you operate in multiple regions (e.g. EU and US) and each
+        has its own residency rules, use ONE NAMESPACE PER REGION and
+        route traffic accordingly.
+
+        What you do: Create namespace security-scanner-eu in EU and
+        security-scanner-us in US. Your app (or a router) chooses the
+        namespace based on where the data originates or where the user
+        is. Run separate worker pools per region, each polling the
+        namespace for that region.
+
+        Result: EU data stays in the EU namespace; US data in the US
+        namespace. No mixing in a single namespace. Best for: global
+        products with regional data boundaries (e.g. GDPR + US).
+    """)
+    wait()
+
+    # ── Strict single-region and private connectivity ──
+    concept_box("Strict Single-Region and Private Connectivity", """
+        STRICT SINGLE-REGION: Create the namespace in the desired region
+        and do not enable multi-region or multi-cloud replication.
+        Self-hosted: run a single cluster in one region; no replication
+        to another country.
+
+        PRIVATE CONNECTIVITY: Temporal Cloud supports AWS PrivateLink
+        so traffic between your VPC and Temporal does not traverse the
+        public internet. Run workers and starters in the same VPC.
+        Defense in depth for "no data on public internet" policies.
+    """)
+
+    # ── Checklist and best practices ──
+    concept_box("Sovereignty Architecture Checklist", """
+        • Namespace region (Cloud): Create namespace in target region.
+        • Self-hosted in-region: Deploy Temporal + DB in your region/DC.
+        • Workers in same region: Same region as namespace and data.
+        • Persistence in-region: Cloud = implied by namespace; self-hosted
+          = run DB in-region; backups in-region if policy requires.
+        • Namespace-per-region: One per region; route by data origin.
+        • No cross-region replication: Disable for strict single-region.
+        • Private connectivity: PrivateLink / private endpoints.
+        • Encryption (defense in depth): PayloadCodec + key in-region.
+    """)
+
+    teach("""
+        For this demo we run everything locally — one machine, one region.
+        In production you pick a Temporal Cloud region or self-host in
+        the jurisdiction that matches your residency requirement, run
+        workers there, and add payload encryption with keys held only
+        in-region. Full checklist and references: SOVEREIGNTY.md.
+    """)
+
+    why_it_matters("""
+        Sovereignty is a legal and contractual requirement in many
+        industries. A detailed understanding of these levers lets you
+        design so "data stays in country X" is achieved by architecture
+        (namespace region, worker placement, no unwanted replication),
+        not by hoping encryption alone satisfies regulators.
+    """)
+
+    insight("""
+        For sovereignty and encryption: this act is what gives you
+        confidence that data stays in the region you chose — one
+        workflow, many jurisdictions, when you follow the checklist.
+        Next: we run the same workflow live and prove encryption.
+    """)
+
+    wait("Press Enter to continue to the live scan (Act 5)...")
+
+
+# ── Act 5: Live Scan + Encryption Proof ──────────────────────────────
+
+async def act_5():
+    banner("ACT 5: THE LIVE PROOF")
 
     story("""
         Enough theory. Let's prove every claim with a live system.
+
+        This is the same workflow we'd run in the EU namespace or the
+        US namespace — only the namespace and worker location would
+        change. We're running it locally for the demo.
 
         We're about to start a real security scan of Temporal's own
         GitHub organization — ~194 public repositories. Real API calls.
@@ -624,6 +986,9 @@ async def act_3():
                     Each query returns a ScanProgress dataclass:
                     the workflow's live internal state, serialized
                     and sent back through the encrypted channel.
+                    General best practice: queries give you observability
+                    from any client; in a multi-region setup each region
+                    can query its own workflows.
                 """)
 
             if p.status in ("completed", "cancelled"):
@@ -655,6 +1020,8 @@ async def act_3():
         In the original script, the only way to check progress is to
         read stdout. Queries work from ANY client: CLI, dashboard,
         monitoring system, another microservice. Structured data, not logs.
+        General best practice — and in multi-region, each region queries
+        its own workflows.
     """)
 
     # ── encryption proof ──
@@ -662,10 +1029,11 @@ async def act_3():
     wait("Press Enter to inspect encryption...")
 
     story("""
-        We've claimed everything is encrypted. Let's prove it by
-        connecting to the server WITHOUT our encryption key and
-        examining the raw payloads — exactly what an attacker or
-        database admin would see.
+        We've claimed everything is encrypted. In any region — EU, US,
+        APAC — the platform never sees plaintext. Same guarantee in
+        Frankfurt or Virginia. Let's prove it by connecting to the
+        server WITHOUT our encryption key and examining the raw
+        payloads — exactly what an attacker or database admin would see.
     """)
 
     concept_box("PayloadCodec — Client-Side Encryption", """
@@ -755,6 +1123,10 @@ async def act_3():
         Temporal server — whether self-hosted or Temporal Cloud —
         never has the key. It stores and routes opaque ciphertext.
 
+        For one workflow, many jurisdictions: each region can use its
+        own key (e.g. EU KMS in EU, US KMS in US); the platform in
+        that region still never sees it.
+
         Why this matters:
           Compliance: your secrets never leave your trust boundary.
             The platform operator cannot read your data even with
@@ -788,13 +1160,16 @@ async def act_3():
     )
 
 
-# ── Act 4: Kill Test ────────────────────────────────────────────────
+# ── Act 6: Kill Test ────────────────────────────────────────────────
 
-async def act_4():
-    banner("ACT 4: THE KILL TEST", BG_RED)
+async def act_6():
+    banner("ACT 6: THE KILL TEST", BG_RED)
 
     story("""
-        This is the defining demonstration of Temporal's value.
+        Durability is a general best practice — it matters whether you
+        run in one region or many. For one workflow, many jurisdictions
+        it means the same scan can survive a worker crash in Frankfurt
+        or in Virginia; no special case per region.
 
         We will: start a scan, let it make progress, KILL the worker,
         prove the workflow is still alive on the server, restart the
@@ -1019,10 +1394,16 @@ async def act_4():
     )
 
 
-# ── Act 5: Graceful Cancel ──────────────────────────────────────────
+# ── Act 7: Graceful Cancel ──────────────────────────────────────────
 
-async def act_5():
-    banner("ACT 5: GRACEFUL CANCELLATION")
+async def act_7():
+    banner("ACT 7: GRACEFUL CANCELLATION")
+
+    teach("""
+        Graceful cancellation is a general best practice. When you run
+        in many regions, each region's operators can cancel their own
+        runs without touching others — same workflow, same signal.
+    """)
 
     concept_box("Signals vs Queries vs Cancellation", """
         Three ways to communicate with a running workflow:
@@ -1127,23 +1508,54 @@ async def act_5():
 async def part1_summary():
     banner("PART 1 COMPLETE", BG_GREEN)
 
+    story("""
+        Core to our story (one workflow, many jurisdictions): encryption
+        and sovereignty — so the platform never sees our secrets and
+        data stays in the region we chose. The rest — durability (kill
+        test), queries, signals, parallel execution — are general best
+        practices that make the same workflow robust in any region.
+    """)
+    print()
+
+    concept_box("WHAT YOU CAN HAVE CONFIDENCE IN (after Part 1)", """
+        ENCRYPTION: You can have confidence that the Temporal platform
+        (server, DB, operator) never sees your plaintext in any region.
+        Why: PayloadCodec encrypts client-side; you hold the key; we
+        proved it by connecting without the key and seeing only ciphertext.
+        Same guarantee in EU, US, or APAC — per-region keys if you want.
+
+        SOVEREIGNTY: You can have confidence that workflow data stays
+        in the region you chose, when you follow the architecture we
+        showed (namespace in that region, workers in that region, no
+        cross-border replication). Why: Act 4 spelled out the levers;
+        encryption then adds defense in depth so even a mistaken copy
+        would be unreadable. See SOVEREIGNTY.md and ENCRYPTION.md.
+    """)
+    print()
+
     print(f"  {WHITE}{BOLD}WHAT WE DEMONSTRATED:{RESET}\n")
     items = [
-        ("Durable Execution (The Kill Test)",
+        ("Encryption — Detailed Understanding (Act 3) [core to story]",
+         "What gets encrypted vs not, threat model, AE. Platform never sees plaintext in any region.",
+         "Full deep dive; production: envelope encryption, KMS, Codec Server. See ENCRYPTION.md."),
+        ("Sovereignty — Detailed Understanding (Act 4) [core to story]",
+         "Residency first; levers: Cloud namespace region, self-hosted, workers, namespace-per-region.",
+         "Checklist for sovereignty-respecting architecture. See SOVEREIGNTY.md."),
+        ("Durable Execution — Kill Test (Act 6) [general best practice]",
          "Killed the worker mid-scan. Workflow survived on the server.",
          "New worker replayed history, resumed. Zero duplicate API calls."),
-        ("Queryable State",
+        ("Queryable State [general best practice]",
          "Read scan progress from an external process using typed queries.",
-         "Works from CLI, code, Web UI. Structured data, not logs."),
-        ("Signal-Based Graceful Cancellation",
+         "Works from CLI, code, Web UI. In multi-region, each region queries its own workflows."),
+        ("Signal-Based Graceful Cancellation [general best practice]",
          "Sent a fire-and-forget signal to stop the scan.",
-         "Workflow finished its batch, generated a partial report."),
-        ("End-to-End Payload Encryption (HYOK)",
+         "Workflow finished its batch, generated a partial report. Same in any region."),
+        ("End-to-End Payload Encryption (HYOK) [core to story]",
          "Every payload encrypted client-side with AES.",
-         "Connected without the key: saw only ciphertext."),
-        ("Parallel Execution with Fault Isolation",
+         "Connected without the key: saw only ciphertext. Same guarantee in any region."),
+        ("Parallel Execution with Fault Isolation [general best practice]",
          "10 repos scanned concurrently per batch.",
-         "One failure doesn't cancel the batch."),
+         "One failure doesn't cancel the batch. Same workflow runs efficiently everywhere."),
     ]
     for i, (title, l1, l2) in enumerate(items, 1):
         print(f"  {GREEN}{BOLD}{i}. {title}{RESET}")
@@ -1166,17 +1578,17 @@ async def part1_summary():
 async def part2_intro():
     banner("PART 2: PRODUCTION PATTERNS", BG_MAGENTA)
     story("""
-        Part 1 established the foundation. Part 2 addresses what
-        comes next: How do I reconfigure a running workflow? What
-        about rate limits? What happens when event history grows
-        large? How do I schedule recurring scans?
+        Part 2 is general best practices: update handlers, durable
+        timers, continue-as-new, and schedules. They make the workflow
+        production-ready in any region — not specific to the jurisdiction
+        story, but part of running this same workflow everywhere.
 
         Four more Temporal primitives, each demonstrated live.
     """)
 
 
-async def act_6():
-    banner("ACT 6: LIVE SURGERY", BG_CYAN)
+async def act_8():
+    banner("ACT 8: LIVE SURGERY", BG_CYAN)
 
     story("""
         Three features on a single running scan: update the batch
@@ -1338,8 +1750,8 @@ async def act_6():
     )
 
 
-async def act_7():
-    banner("ACT 7: INFINITE ENDURANCE", BG_YELLOW)
+async def act_9():
+    banner("ACT 9: INFINITE ENDURANCE", BG_YELLOW)
 
     story("""
         Our ~194-repo scan produces roughly 1,100 events. What about
@@ -1427,8 +1839,8 @@ async def act_7():
     """)
 
 
-async def act_8():
-    banner("ACT 8: THE AUTOMATION", BG_GREEN)
+async def act_10():
+    banner("ACT 10: THE AUTOMATION", BG_GREEN)
 
     story("""
         The CISO wants a compliance report every Monday at 6am.
@@ -1518,9 +1930,11 @@ async def epilogue():
         It's 9am. The CISO walks into the meeting.
 
         The compliance report is on their desk. Complete. 194 repos
-        scanned. Every payload encrypted. The scanner crashed at 2am
-        (a worker node was recycled) and recovered automatically by
-        2:01am. Nobody was paged. Nobody restarted anything.
+        scanned. Every payload encrypted. The scanner ran in the EU
+        namespace last week and the US namespace this week — same
+        workflow, same code; data never left the region they chose.
+        The scanner crashed at 2am (a worker node was recycled) and
+        recovered automatically by 2:01am. Nobody was paged.
 
         The report includes a partial scan from last night — someone
         sent a cancel signal when they realized the GitHub token
@@ -1531,7 +1945,111 @@ async def epilogue():
 
     wait()
 
-    print(f"  {WHITE}{BOLD}WHAT WE DEMONSTRATED:{RESET}\n")
+    banner("WHAT WE DEMONSTRATED FOR ENCRYPTION AND SOVEREIGNTY", BG_CYAN)
+
+    story("""
+        Before we summarize what you can have confidence in, here is
+        exactly what we demonstrated for encryption and for sovereignty.
+    """)
+
+    concept_box("WHAT WE DEMONSTRATED FOR ENCRYPTION", """
+        • Act 3 — Detailed understanding: what gets encrypted (workflow
+          input/output, activity input/output, queries, signals, memo)
+          and what does not (search attributes, workflow/activity names,
+          task queue). Threat model: who sees ciphertext vs who has the
+          key. Authenticated encryption (Fernet: AE). Testing vs production
+          (single key vs envelope + KMS, Codec Server).
+
+        • Act 5 — Live proof: we started a real scan, then connected to
+          the Temporal server WITHOUT the encryption key and inspected
+          event history. We showed that the server sees only ciphertext
+          (encoding: binary/encrypted); the worker and client see plaintext
+          because they hold the key. Hold-your-own-key (HYOK) in practice.
+
+        • Throughout: the same workflow runs with encryption in any region;
+          per-region or per-namespace keys when you run in multiple
+          jurisdictions.
+    """)
+
+    concept_box("WHAT WE DEMONSTRATED FOR SOVEREIGNTY", """
+        • Act 4 — Detailed understanding: why residency comes first
+          (encryption does not move data; ciphertext in another country
+          is still data there for many regulators). The levers: (1) Temporal
+          Cloud — create the namespace in the target region; (2) self-hosted
+          — deploy Temporal and persistence in your region; (3) workers in
+          the same region as the namespace; (4) namespace-per-region for
+          multi-region orgs (e.g. EU namespace, US namespace); (5) no
+          cross-region replication for strict single-region; (6) private
+          connectivity (e.g. PrivateLink). Checklist and best practices.
+
+        • We did not run multiple regions live (this demo is local), but
+          we showed the architecture that makes "data stays in region X"
+          true when you deploy that way. Encryption adds defense in depth.
+          Full checklist: SOVEREIGNTY.md.
+    """)
+
+    wait()
+
+    banner("WHAT YOU CAN HAVE CONFIDENCE IN — ENCRYPTION & SOVEREIGNTY", BG_CYAN)
+
+    story("""
+        Based on what we demonstrated above, here is what you can have
+        confidence in for encryption and sovereignty, and why.
+    """)
+
+    concept_box("ENCRYPTION — What you can have confidence in", """
+        The Temporal platform (server, database, cloud operator) never
+        sees your plaintext workflow or activity data — in any region.
+
+        WHAT: Tokens, inputs, results, queries, signals, memo — all
+        encrypted client-side before they reach the server. The server
+        stores and routes only ciphertext. You hold the key (HYOK).
+
+        WHY: We use a PayloadCodec; the server never has the key. We
+        proved it: we connected without the key and saw only ciphertext
+        in the event history. In a multi-region setup you can use
+        per-region or per-namespace keys (e.g. EU KMS in EU, US KMS in US).
+
+        VALUE: Compliance and audit: your secrets never leave your trust
+        boundary. The platform operator cannot read your data even with
+        full database access. Same guarantee whether you run in one
+        region or many.
+    """)
+
+    concept_box("SOVEREIGNTY — What you can have confidence in", """
+        When you follow the architecture we showed, workflow data stays
+        in the region you chose — no copy in another nation's server.
+
+        WHAT: Create the namespace in the target region (Temporal Cloud
+        or self-hosted there). Run workers in that same region. Do not
+        enable cross-region replication for that namespace. Optionally
+        use private connectivity (e.g. PrivateLink). Encryption adds
+        defense in depth so even a mistaken copy would be unreadable.
+
+        WHY: Act 4 walked through the levers: namespace region, self-hosted
+        in-region, workers in-region, namespace-per-region for multi-region
+        orgs. Sovereignty is achieved by where you store and process data,
+        not by encryption alone. See SOVEREIGNTY.md for the full checklist.
+
+        VALUE: You can run the same workflow in EU, US, APAC (or on-prem
+        in a specific country) and truthfully say: data from region X never
+        left region X. One codebase, one workflow definition, same
+        guarantees in every jurisdiction.
+    """)
+
+    why_it_matters("""
+        One workflow, many jurisdictions only works if the person looking
+        for sovereignty and encryption protections knows what they can
+        rely on. You can rely on: (1) the platform never seeing plaintext
+        when you use a PayloadCodec and hold the key, and (2) data staying
+        in-region when you place the namespace and workers there and don't
+        replicate across borders. This demo gave you the evidence and the
+        architecture to implement both.
+    """)
+
+    wait()
+
+    print(f"  {WHITE}{BOLD}WHAT WE DEMONSTRATED (full list):{RESET}\n")
 
     items = [
         ("DURABLE EXECUTION",
@@ -1581,11 +2099,15 @@ async def epilogue():
     print()
 
     story("""
-        That's the demo. Not five separate fixes bolted onto a script.
-        One architectural decision — make execution durable — that
-        solves fault tolerance, observability, encryption, cancellation,
-        and concurrency all at once.
+        That's the demo. One workflow, many jurisdictions. One architectural
+        decision — make execution durable, encrypt at the edge, choose the
+        region — that gives you fault tolerance, observability, encryption,
+        sovereignty, cancellation, and concurrency. Same code, same
+        guarantees, in any region you need.
 
+        For encryption and sovereignty: you can have confidence the
+        platform never sees your plaintext (you hold the key), and that
+        data stays in-region when you follow the architecture we showed.
         The 2am incident doesn't happen anymore.
 
         Demo by Sal Kimmich — https://github.com/salkimmich
@@ -1597,13 +2119,17 @@ async def epilogue():
 # =====================================================================
 
 async def run():
-    banner("THE 2AM INCIDENT: A TEMPORAL DEMO")
+    banner("THE 2AM INCIDENT: ONE WORKFLOW, MANY JURISDICTIONS", BG_BLUE)
 
     story("""
-        An interactive, narrated walkthrough of durable execution.
+        Story: We run the same security scan for teams in multiple
+        countries. EU data stays in the EU; US in the US. This demo
+        shows how we get durability, encryption, and sovereignty so
+        one codebase runs everywhere with the same guarantees.
 
-        Real workflows. Real encryption. Real crashes. Real recovery.
-        Every concept proven live, not claimed on a slide.
+        An interactive, narrated walkthrough. Real workflows, real
+        encryption, real crashes, real recovery — every concept
+        proven live.
 
         You'll need three terminals:
           Terminal 1: temporal server start-dev
@@ -1629,12 +2155,16 @@ async def run():
     await act_1()
     wait("→ Act 2: The Architecture...")
     await act_2()
-    wait("→ Act 3: Live Proof + Encryption...")
-    await act_3()
-    wait("→ Act 4: The Kill Test...")
-    await act_4()
-    wait("→ Act 5: Graceful Cancellation...")
+    wait("→ Act 3: Encryption — detailed understanding...")
+    await act_3_encryption_deep_dive()
+    wait("→ Act 4: Sovereignty — detailed understanding...")
+    await act_4_sovereignty()
+    wait("→ Act 5: Live Proof + Encryption...")
     await act_5()
+    wait("→ Act 6: The Kill Test...")
+    await act_6()
+    wait("→ Act 7: Graceful Cancellation...")
+    await act_7()
     await part1_summary()
 
     # Choice point
@@ -1646,12 +2176,12 @@ async def run():
 
     if choice in ("y", "yes", ""):
         await part2_intro()
-        wait("→ Act 6: Live Surgery (updates, timers)...")
-        await act_6()
-        wait("→ Act 7: Continue-As-New...")
-        await act_7()
-        wait("→ Act 8: Schedules...")
+        wait("→ Act 8: Live Surgery (updates, timers)...")
         await act_8()
+        wait("→ Act 9: Continue-As-New...")
+        await act_9()
+        wait("→ Act 10: Schedules...")
+        await act_10()
         wait("→ Epilogue...")
         await epilogue()
     else:
@@ -1660,6 +2190,15 @@ async def run():
             update handlers, durable timers, continue-as-new, and
             schedules.
         """)
+        print()
+        concept_box("YOUR CONFIDENCE SUMMARY (encryption & sovereignty)", """
+            ENCRYPTION: The platform never sees your plaintext — you
+            hold the key, PayloadCodec client-side. We proved it.
+            SOVEREIGNTY: Data stays in the region you chose when you
+            put namespace and workers there and don't replicate across
+            borders. See SOVEREIGNTY.md and ENCRYPTION.md.
+        """)
+        print()
 
     print(f"  {DIM}Demo complete. Thank you for your time.{RESET}\n")
 
